@@ -8,7 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\NuGetArcFace\NuGetArcFace.csproj" />
+    <PackageReference Include="NuGetArcFace" Version="1.0.0" />
   </ItemGroup>
 
 </Project>
