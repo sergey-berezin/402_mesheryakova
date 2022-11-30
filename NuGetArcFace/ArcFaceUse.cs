@@ -7,7 +7,6 @@ using SixLabors.ImageSharp.PixelFormats;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-//using System.Threading.Tasks.Dataflow;
 
 namespace NuGetArcFace
 {
@@ -38,22 +37,6 @@ namespace NuGetArcFace
             }, token, TaskCreationOptions.LongRunning, TaskScheduler.Default);
         }
 
-        /*public void GetFeatureVector(Image<Rgb24> face, BufferBlock<float[]> block, CancellationToken token)
-        {
-            
-            var act = new ActionBlock<Image<Rgb24>>(face =>
-            {
-                var inputs = new List<NamedOnnxValue> { NamedOnnxValue.CreateFromTensor("data", ImageToTensor(face)) };
-                IDisposableReadOnlyCollection<DisposableNamedOnnxValue> results;
-                token.ThrowIfCancellationRequested();
-                results = session.Run(inputs);
-                block.Post(Normalize(results.First(v => v.Name == "fc1").AsEnumerable<float>().ToArray()));
-            }, new ExecutionDataflowBlockOptions
-            {
-                MaxDegreeOfParallelism = Environment.ProcessorCount,
-                CancellationToken = token
-            });
-        }*/
 
         public float Distance(float[] v1, float[] v2) => Length(v1.Zip(v2).Select(p => p.First - p.Second).ToArray());
 
@@ -131,6 +114,48 @@ namespace NuGetArcFace
         public void Dispose()
         {
             session.Dispose();
+        }
+        
+         public async Task<(float[,], float[,])> DistAndSimAsMatrix(
+            Image<Rgb24>[] images, CancellationToken token, IProgress<int> progress)
+        {
+            float[,] DistanceMatrix = new float[images.Length, images.Length];
+
+            float[,] SimilarityMatrix = new float[images.Length, images.Length];
+
+            try
+            {
+                List<float[]> embeddings = new();
+
+                progress.Report(0);
+
+                foreach (var image in images)
+                {
+                    embeddings.Add(await GetFeatureVector(image, token));
+                    progress.Report(embeddings.Count * 99 / images.Count());
+                }
+
+                int i = 0;
+
+                foreach (var emb1 in embeddings)
+                {
+                    int j = 0;
+                    foreach (var emb2 in embeddings)
+                    {
+                        DistanceMatrix[i, j] = Distance(emb1, emb2);
+                        SimilarityMatrix[i, j] = Similarity(emb1, emb2);
+                        j++;
+                    }
+                    i++;
+                }
+                progress.Report(100);
+
+                return (DistanceMatrix, SimilarityMatrix);
+            }
+            catch
+            {
+                return (new float[0, 0], new float[0, 0]);
+            }
         }
     }
 }
